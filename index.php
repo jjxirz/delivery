@@ -1,4 +1,21 @@
 <?php
+// 1. Iniciar la sesión
+session_start();
+
+// 2. Verificar si el usuario está logueado
+// (Asegúrate de que el nombre de la variable coincida con el que usas en login.php)
+if (!isset($_SESSION['usuario_id'])) {
+    // Si no hay sesión, redirigir al login
+    header("Location: login.php");
+    exit();
+}
+
+// 3. (Opcional pero recomendado) Validar que el rol exista para evitar errores
+if (!isset($_SESSION['usuario_rol'])) {
+    $_SESSION['usuario_rol'] = 'comercio'; // Rol por defecto o redirigir a logout
+}
+
+// 4. Ahora sí, cargar el header
 require_once __DIR__ . '/layout/header.php';
 ?>
 

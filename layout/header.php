@@ -38,7 +38,7 @@ require_once __DIR__ . '/../config/config.php';
 
         <a href="<?= BASE_URL ?>modules/pedidos/index.php" class="btn" style="padding: 4px 8px; font-size: 0.8rem;">Pedidos</a>
 
-        <?php if ($_SESSION['usuario_rol'] === 'admin'): ?>
+        <?php if (in_array($_SESSION['usuario_rol'], ['admin', 'comercio'])): ?>
             <a href="<?= BASE_URL ?>modules/reportes/index.php" class="btn btn-primary" style="padding: 4px 8px; font-size: 0.8rem;">Liquidaciones</a>
         <?php endif; ?>
 

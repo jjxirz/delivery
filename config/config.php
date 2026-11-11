@@ -8,7 +8,7 @@ if (!defined('BASE_URL')) {
     define('BASE_URL', $protocol . $domainName . '/');
 }
 
-define('SITE_NAME', 'DeliveryAdmin');
+define('SITE_NAME', 'Delivery');
 
 // Variables para imágenes indexadas en línea (Placeholders/SVG/Iconos)
 $ASSETS_IMAGES = [

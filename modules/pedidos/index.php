@@ -332,7 +332,7 @@ document.getElementById('btnAceptarReasignacion').addEventListener('click', func
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                     <div class="form-group">
                         <label for="cliente_telefono">Teléfono Cliente</label>
-                        <input type="text" name="cliente_telefono" id="cliente_telefono" class="form-control" required placeholder="555-8899">
+                        <input type="text" name="cliente_telefono" id="cliente_telefono" class="form-control" required placeholder="5555-8899">
                     </div>
 
                     <div class="form-group">

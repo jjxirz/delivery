@@ -1,109 +1,136 @@
 <?php
-require_once __DIR__ . '/../../layout/header.php';
+// 1. Cargar dependencias y verificar permisos ANTES de cualquier salida
+require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../usuarios/auth.php';
-require_once __DIR__ . '/Liquidacion.php';
-require_once __DIR__ . '/../repartidores/Repartidor.php';
+require_once __DIR__ . '/../../config/database.php';
 
-Auth::verificarRol(['admin']);
+// PERMISOS: Ahora Admin y Comercio pueden ingresar
+Auth::verificarRol(['admin', 'comercio']);
 
-$mensaje = '';
-$tipo_mensaje = '';
+require_once __DIR__ . '/../../layout/header.php';
 
-// Parámetros de filtro
-$fecha_hoy = date('Y-m-d');
-$fecha_inicio = $_GET['fecha_inicio'] ?? date('Y-m-01');
-$fecha_fin = $_GET['fecha_fin'] ?? $fecha_hoy;
+$rol = $_SESSION['usuario_rol'];
+$usuario_id = $_SESSION['usuario_id'];
 
-// Procesar Liquidación Manual
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'liquidar') {
-    $repartidor_id = (int)$_POST['repartidor_id'];
-    $fecha_liquidar = $_POST['fecha_liquidar'];
+$fecha_inicio = $_GET['fecha_inicio'] ?? date('Y-m-d');
+$fecha_fin = $_GET['fecha_fin'] ?? date('Y-m-d');
 
-    if (!empty($repartidor_id) && !empty($fecha_liquidar)) {
-        $res = Liquidacion::procesarLiquidacion($repartidor_id, $fecha_liquidar);
-        if ($res === true) {
-            $mensaje = "Liquidación procesada correctamente.";
-            $tipo_mensaje = "exito";
-        } else {
-            $mensaje = $res;
-            $tipo_mensaje = "error";
-        }
-    }
+$db = Database::getConnection();
+
+// Si el usuario es comercio, identificamos su ID de comercio
+$comercio_id = null;
+if ($rol === 'comercio') {
+    $stmtCom = $db->prepare("SELECT id FROM comercios WHERE usuario_id = :uid LIMIT 1");
+    $stmtCom->execute([':uid' => $usuario_id]);
+    $comercio_id = $stmtCom->fetchColumn() ?: null;
 }
 
-$repartidores = Repartidor::listar();
-$liquidaciones = Liquidacion::listarLiquidaciones($fecha_inicio, $fecha_fin);
+// 2. Consulta SQL Dinámica con filtro de comercio
+if ($rol === 'comercio' && $comercio_id) {
+    // Para Comercio: filtra solo los envíos entregados de sus repartidores
+    $sql = "SELECT 
+                DATE(p.fecha_creacion) as fecha,
+                u.nombre as repartidor_nombre,
+                r.vehiculo,
+                COUNT(p.id) as envios_entregados,
+                SUM(p.monto_mando + p.costo_envio) as monto_recaudado,
+                SUM(p.costo_envio) as pago_comision
+            FROM pedidos p
+            INNER JOIN repartidores r ON p.repartidor_id = r.id
+            INNER JOIN usuarios u ON r.usuario_id = u.id
+            WHERE p.estado = 'entregado'
+              AND r.comercio_id = :comercio_id
+              AND DATE(p.fecha_creacion) BETWEEN :f_inicio AND :f_fin
+            GROUP BY DATE(p.fecha_creacion), r.id
+            ORDER BY fecha DESC, u.nombre ASC";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute([
+        ':comercio_id' => $comercio_id,
+        ':f_inicio' => $fecha_inicio,
+        ':f_fin' => $fecha_fin
+    ]);
+} else {
+    // Para Admin: liquida a todos los repartidores
+    $sql = "SELECT 
+                DATE(p.fecha_creacion) as fecha,
+                u.nombre as repartidor_nombre,
+                r.vehiculo,
+                COUNT(p.id) as envios_entregados,
+                SUM(p.monto_mando + p.costo_envio) as monto_recaudado,
+                SUM(p.costo_envio) as pago_comision
+            FROM pedidos p
+            INNER JOIN repartidores r ON p.repartidor_id = r.id
+            INNER JOIN usuarios u ON r.usuario_id = u.id
+            WHERE p.estado = 'entregado'
+              AND DATE(p.fecha_creacion) BETWEEN :f_inicio AND :f_fin
+            GROUP BY DATE(p.fecha_creacion), r.id
+            ORDER BY fecha DESC, u.nombre ASC";
 
-// Totales acumulados para métricas rápidas
-$total_recaudado_acumulado = array_sum(array_column($liquidaciones, 'monto_recaudado'));
-$total_comisiones_acumulado = array_sum(array_column($liquidaciones, 'pago_comision'));
+    $stmt = $db->prepare($sql);
+    $stmt->execute([':f_inicio' => $fecha_inicio, ':f_fin' => $fecha_fin]);
+}
+
+$liquidaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Totales acumulados
+$totalEnvios = 0;
+$totalRecaudado = 0;
+$totalComisiones = 0;
+
+foreach ($liquidaciones as $l) {
+    $totalEnvios += $l['envios_entregados'];
+    $totalRecaudado += $l['monto_recaudado'];
+    $totalComisiones += $l['pago_comision'];
+}
 ?>
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-    <h2>Control de Liquidaciones y Reportes</h2>
-    <button onclick="window.print();" class="btn btn-primary">🖨️ Imprimir / Exportar Reporte</button>
+    <h2>Liquidaciones y Cierre Diario <?= $rol === 'comercio' ? '(Mis Repartidores)' : '' ?></h2>
+    
+    <a href="exportar_pdf.php?fecha_inicio=<?= $fecha_inicio ?>&fecha_fin=<?= $fecha_fin ?>" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+        📄 Exportar Reporte
+    </a>
 </div>
 
-<?php if (!empty($mensaje)): ?>
-    <div style="padding: 10px; margin-bottom: 15px; border-radius: 3px; font-size: 0.9rem; 
-                background-color: <?= $tipo_mensaje === 'exito' ? '#eef9f2' : '#fdf2f2' ?>; 
-                border: 1px solid <?= $tipo_mensaje === 'exito' ? '#bcf0da' : '#f8b4b4' ?>; 
-                color: <?= $tipo_mensaje === 'exito' ? '#0e9f6e' : '#9b1c1c' ?>;">
-        <?= htmlspecialchars($mensaje) ?>
-    </div>
-<?php endif; ?>
-
-<!-- Tarjetas Métricas Rápidas -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px;">
-    <div class="card" style="margin-bottom: 0;">
-        <span style="font-size: 0.8rem; color: var(--so-gray-text);">Total Recaudado (Filtro)</span>
-        <h3 style="font-size: 1.5rem; color: #03543f;">$<?= number_format($total_recaudado_acumulado, 2) ?></h3>
-    </div>
-    <div class="card" style="margin-bottom: 0;">
-        <span style="font-size: 0.8rem; color: var(--so-gray-text);">Comisiones Pagadas</span>
-        <h3 style="font-size: 1.5rem; color: var(--so-orange);">$<?= number_format($total_comisiones_acumulado, 2) ?></h3>
-    </div>
-</div>
-
-<!-- Formulario para Calcular Cierre Diario -->
-<div class="card" style="margin-bottom: 25px;">
-    <h3>Generar Cierre de Caja Diario por Repartidor</h3>
-    <form action="" method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end; margin-top: 15px;">
-        <input type="hidden" name="action" value="liquidar">
-
+<!-- Filtros de Fecha -->
+<div class="card" style="margin-bottom: 20px;">
+    <form action="" method="GET" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
         <div class="form-group" style="margin-bottom: 0;">
-            <label for="repartidor_id">Seleccionar Repartidor</label>
-            <select name="repartidor_id" id="repartidor_id" class="form-control" required>
-                <option value="">Seleccione...</option>
-                <?php foreach ($repartidores as $r): ?>
-                    <option value="<?= $r['id'] ?>"><?= htmlspecialchars($r['nombre']) ?> (<?= $r['vehiculo'] ?>)</option>
-                <?php endforeach; ?>
-            </select>
+            <label for="fecha_inicio">Desde:</label>
+            <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" value="<?= htmlspecialchars($fecha_inicio) ?>">
         </div>
 
         <div class="form-group" style="margin-bottom: 0;">
-            <label for="fecha_liquidar">Fecha de Jornada</label>
-            <input type="date" name="fecha_liquidar" id="fecha_liquidar" class="form-control" value="<?= $fecha_hoy ?>" required>
+            <label for="fecha_fin">Hasta:</label>
+            <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" value="<?= htmlspecialchars($fecha_fin) ?>">
         </div>
 
-        <div>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Procesar Liquidación</button>
-        </div>
+        <button type="submit" class="btn">Filtrar Cierre</button>
+        <a href="index.php" class="btn" style="background-color:#f3f4f6; color:#374151;">Hoy</a>
     </form>
 </div>
 
-<!-- Filtro de Reporte y Tabla Historica -->
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
-        <h3>Historial de Liquidaciones</h3>
-        <form action="" method="GET" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <input type="date" name="fecha_inicio" value="<?= htmlspecialchars($fecha_inicio) ?>" class="form-control" style="font-size: 0.85rem;">
-            <span style="font-size: 0.85rem; color: var(--so-gray-text);">a</span>
-            <input type="date" name="fecha_fin" value="<?= htmlspecialchars($fecha_fin) ?>" class="form-control" style="font-size: 0.85rem;">
-            <button type="submit" class="btn" style="padding: 7px 12px;">Filtrar</button>
-        </form>
+<!-- Tarjetas Resumen -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px;">
+    <div class="card" style="text-align: center; border-left: 4px solid var(--so-orange);">
+        <small style="color: var(--so-gray-text);">Total Envíos Entregados</small>
+        <h3 style="font-size: 1.5rem; margin-top: 5px;"><?= $totalEnvios ?></h3>
+    </div>
+    
+    <div class="card" style="text-align: center; border-left: 4px solid #0e9f6e;">
+        <small style="color: var(--so-gray-text);">Monto Total Recaudado</small>
+        <h3 style="font-size: 1.5rem; margin-top: 5px; color: #0e9f6e;">$<?= number_format($totalRecaudado, 2) ?></h3>
     </div>
 
+    <div class="card" style="text-align: center; border-left: 4px solid #3f83f8;">
+        <small style="color: var(--so-gray-text);">Pago Comisiones Repartidor</small>
+        <h3 style="font-size: 1.5rem; margin-top: 5px; color: #1c64f2;">$<?= number_format($totalComisiones, 2) ?></h3>
+    </div>
+</div>
+
+<!-- Tabla de Liquidaciones -->
+<div class="card">
     <div class="table-responsive">
         <table>
             <thead>
@@ -119,19 +146,22 @@ $total_comisiones_acumulado = array_sum(array_column($liquidaciones, 'pago_comis
             <tbody>
                 <?php if (empty($liquidaciones)): ?>
                     <tr>
-                        <td colspan="6" style="text-align: center; color: var(--so-gray-text);">No hay registros de liquidación en el rango seleccionado.</td>
+                        <td colspan="6" style="text-align: center; color: var(--so-gray-text);">No existen órdenes entregadas registradas en las fechas seleccionadas.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($liquidaciones as $l): ?>
                         <tr>
                             <td><code><?= htmlspecialchars($l['fecha']) ?></code></td>
-                            <td><strong><?= htmlspecialchars($l['repartidor_nombre']) ?></strong> (<?= htmlspecialchars($l['vehiculo']) ?>)</td>
-                            <td><?= $l['total_envios'] ?> pedidos</td>
-                            <td>$<?= number_format($l['monto_recaudado'], 2) ?></td>
-                            <td><strong style="color: var(--so-orange);">$<?= number_format($l['pago_comision'], 2) ?></strong></td>
+                            <td>
+                                <strong><?= htmlspecialchars($l['repartidor_nombre']) ?></strong>
+                                <small style="color: var(--so-gray-text);"> (<?= htmlspecialchars($l['vehiculo']) ?>)</small>
+                            </td>
+                            <td><strong><?= $l['envios_entregados'] ?></strong> pedidos</td>
+                            <td><strong>$<?= number_format($l['monto_recaudado'], 2) ?></strong></td>
+                            <td style="color: #0e9f6e; font-weight: bold;">$<?= number_format($l['pago_comision'], 2) ?></td>
                             <td>
                                 <span style="padding: 3px 8px; border-radius: 3px; font-size: 0.75rem; background-color: #def7ec; color: #03543f;">
-                                    <?= strtoupper($l['estado_pago']) ?>
+                                    LIQUIDADO
                                 </span>
                             </td>
                         </tr>

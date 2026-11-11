@@ -4,7 +4,7 @@
 <div id="toast-container"></div>
 
 <footer style="text-align: center; padding: 20px; font-size: 0.8rem; color: var(--so-gray-text); border-top: 1px solid var(--so-gray-border); margin-top: auto;">
-    <p>&copy; <?= date('Y') ?> <?= SITE_NAME ?> - Sistema Administrativo Flat UI</p>
+    <p>&copy; <?= date('Y') ?> <?= SITE_NAME ?> - Sistema Administrativo Delivery</p>
 </footer>
 
 <script>

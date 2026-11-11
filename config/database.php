@@ -3,9 +3,9 @@ require_once __DIR__ . '/config.php';
 
 class Database {
     private static $host = 'localhost';
-    private static $db_name = 'delivery_db';
-    private static $username = 'admin';
-    private static $password = 'almas12';
+    private static $db_name = 'jeremias_delivery_db';
+    private static $username = 'jeremias';
+    private static $password = 'Almas.12';
     private static $conn;
 
     public static function getConnection() {
