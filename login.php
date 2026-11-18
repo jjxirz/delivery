@@ -39,8 +39,12 @@ require_once __DIR__ . '/layout/header.php';
         </div>
 
         <?php if (!empty($error)): ?>
-            <div style="background-color: #fdf2f2; border: 1px solid #f8b4b4; color: #9b1c1c; padding: 10px; border-radius: 3px; font-size: 0.85rem; margin-bottom: 15px;">
-                <?= htmlspecialchars($error) ?>
+            <div class="alert-banner error" role="alert">
+                <div class="alert-banner-message">
+                    <?= Apariencia::icono('eliminar') ?>
+                    <span><?= htmlspecialchars($error) ?></span>
+                </div>
+                <button type="button" class="alert-banner-dismiss" aria-label="Cerrar aviso" onclick="this.parentElement.remove()">&times;</button>
             </div>
         <?php endif; ?>
 

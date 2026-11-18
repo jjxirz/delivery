@@ -44,11 +44,12 @@ $comercios = Comercio::listar();
 </div>
 
 <?php if (!empty($mensaje)): ?>
-    <div style="padding: 10px; margin-bottom: 15px; border-radius: 3px; font-size: 0.9rem; 
-                background-color: <?= $tipo_mensaje === 'exito' ? '#eef9f2' : '#fdf2f2' ?>; 
-                border: 1px solid <?= $tipo_mensaje === 'exito' ? '#bcf0da' : '#f8b4b4' ?>; 
-                color: <?= $tipo_mensaje === 'exito' ? '#0e9f6e' : '#9b1c1c' ?>;">
-        <?= htmlspecialchars($mensaje) ?>
+    <div class="alert-banner <?= in_array($tipo_mensaje ?? '', ['error', 'danger'], true) ? 'error' : (in_array($tipo_mensaje ?? '', ['warning', 'advertencia'], true) ? 'warning' : 'success') ?>" role="alert">
+        <div class="alert-banner-message">
+            <?= Apariencia::icono(in_array($tipo_mensaje ?? '', ['error', 'danger'], true) ? 'eliminar' : (in_array($tipo_mensaje ?? '', ['warning', 'advertencia'], true) ? 'reloj' : 'auditoria')) ?>
+            <span><?= htmlspecialchars($mensaje) ?></span>
+        </div>
+        <button type="button" class="alert-banner-dismiss" aria-label="Cerrar aviso" onclick="this.parentElement.remove()">&times;</button>
     </div>
 <?php endif; ?>
 

@@ -3,8 +3,9 @@
 
 // Detectar la URL base del servidor (ej: http://localhost:8000/)
 if (!defined('BASE_URL')) {
-    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-    $domainName = $_SERVER['HTTP_HOST'];
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $protocol = $https ? 'https://' : 'http://';
+    $domainName = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8000';
     define('BASE_URL', $protocol . $domainName . '/');
 }
 

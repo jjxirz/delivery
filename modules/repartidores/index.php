@@ -70,11 +70,12 @@ $repartidores = Repartidor::listar($comercio_id);
 </div>
 
 <?php if (!empty($mensaje)): ?>
-    <div style="padding: 10px; margin-bottom: 15px; border-radius: 3px; font-size: 0.9rem; 
-                background-color: <?= $tipo_mensaje === 'exito' ? '#eef9f2' : '#fdf2f2' ?>; 
-                border: 1px solid <?= $tipo_mensaje === 'exito' ? '#bcf0da' : '#f8b4b4' ?>; 
-                color: <?= $tipo_mensaje === 'exito' ? '#0e9f6e' : '#9b1c1c' ?>;">
-        <?= htmlspecialchars($mensaje) ?>
+    <div class="alert-banner <?= in_array($tipo_mensaje ?? '', ['error', 'danger'], true) ? 'error' : (in_array($tipo_mensaje ?? '', ['warning', 'advertencia'], true) ? 'warning' : 'success') ?>" role="alert">
+        <div class="alert-banner-message">
+            <?= Apariencia::icono(in_array($tipo_mensaje ?? '', ['error', 'danger'], true) ? 'eliminar' : (in_array($tipo_mensaje ?? '', ['warning', 'advertencia'], true) ? 'reloj' : 'auditoria')) ?>
+            <span><?= htmlspecialchars($mensaje) ?></span>
+        </div>
+        <button type="button" class="alert-banner-dismiss" aria-label="Cerrar aviso" onclick="this.parentElement.remove()">&times;</button>
     </div>
 <?php endif; ?>
 
@@ -114,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <td>#<?= $r['id'] ?></td>
                 <td>
                     <strong><?= htmlspecialchars($r['nombre']) ?></strong>
-                    <?= $r['estado_usuario'] == 0 ? ' <small style="color:#d9534f;">(Inactivo)</small>' : '' ?>
+                    <?= $r['estado_usuario'] == 0 ? ' <small style="color:#dc2626;">(Inactivo)</small>' : '' ?>
                 </td>
                 <td><?= htmlspecialchars($r['email']) ?></td>
                 
@@ -129,30 +130,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <td><?= htmlspecialchars($r['vehiculo']) ?></td>
                 <td><code><?= htmlspecialchars($r['placa']) ?></code></td>
                 <td>
-                    <?php if ($r['estado_usuario'] == 0): ?>
-                        <span style="padding: 3px 8px; border-radius: 3px; font-size: 0.75rem; background-color: #f3f4f6; color: #6b7280;">
-                            N/A
-                        </span>
-                    <?php else: ?>
-                        <?php
-                        $badgeColor = $r['estado_disponibilidad'] === 'disponible' ? '#def7ec' : '#feecdc';
-                        $textColor = $r['estado_disponibilidad'] === 'disponible' ? '#03543f' : '#9a3412';
-                        ?>
-                        <span style="padding: 3px 8px; border-radius: 3px; font-size: 0.75rem; background-color: <?= $badgeColor ?>; color: <?= $textColor ?>;">
-                            <?= ucfirst($r['estado_disponibilidad']) ?>
-                        </span>
-                    <?php endif; ?>
+                    <?php
+                    $estadoDisp = $r['estado_disponibilidad'] ?? 'inactivo';
+                    $estaInactivo = (int)$r['estado_usuario'] !== 1 || $estadoDisp === 'inactivo';
+                    $textoDisponibilidad = $estaInactivo
+                        ? 'Inactivo'
+                        : ($estadoDisp === 'disponible' ? 'Disponible' : 'En Ruta / Ocupado');
+                    $fondoDisponibilidad = $estaInactivo
+                        ? '#fee2e2'
+                        : 'color-mix(in srgb, var(--so-orange) 12%, #ffffff)';
+                    $colorDisponibilidad = $estaInactivo
+                        ? '#dc2626'
+                        : 'color-mix(in srgb, var(--so-orange) 78%, #0c0d0e)';
+                    $bordeDisponibilidad = $estaInactivo
+                        ? '#dc2626'
+                        : 'color-mix(in srgb, var(--so-orange) 38%, #ffffff)';
+                    ?>
+                    <span style="padding: 3px 8px; border: 1px solid <?= $bordeDisponibilidad ?>; border-radius: 3px; font-size: 0.75rem; background-color: <?= $fondoDisponibilidad ?>; color: <?= $colorDisponibilidad ?>;">
+                        <?= $textoDisponibilidad ?>
+                    </span>
                 </td>
                 <td>
+                    <?php
+                    $accionSuspender = (int)$r['estado_usuario'] === 1;
+                    $fondoAccion = $accionSuspender
+                        ? '#fee2e2'
+                        : 'color-mix(in srgb, var(--so-orange) 12%, #ffffff)';
+                    $colorAccion = $accionSuspender
+                        ? '#dc2626'
+                        : 'color-mix(in srgb, var(--so-orange) 78%, #0c0d0e)';
+                    $bordeAccion = $accionSuspender
+                        ? '#dc2626'
+                        : 'color-mix(in srgb, var(--so-orange) 38%, #ffffff)';
+                    ?>
                     <form action="" method="POST" style="display:inline;">
                         <input type="hidden" name="action" value="toggle_estado_repartidor">
                         <input type="hidden" name="repartidor_id" value="<?= $r['id'] ?>">
-                        <input type="hidden" name="nuevo_estado" value="<?= $r['estado_usuario'] == 1 ? '0' : '1' ?>">
-                        <button type="submit" class="btn" style="padding: 2px 8px; font-size: 0.75rem; 
-                                background-color: <?= $r['estado_usuario'] == 1 ? '#fde8e8' : '#def7ec' ?>; 
-                                color: <?= $r['estado_usuario'] == 1 ? '#9b1c1c' : '#03543f' ?>; 
-                                border-color: <?= $r['estado_usuario'] == 1 ? '#f8b4b4' : '#bcf0da' ?>;">
-                            <?= $r['estado_usuario'] == 1 ? 'Desactivar' : 'Activar' ?>
+                        <input type="hidden" name="nuevo_estado" value="<?= $accionSuspender ? '0' : '1' ?>">
+                        <button type="submit" class="btn" style="padding: 2px 8px; font-size: 0.75rem; background-color: <?= $fondoAccion ?>; color: <?= $colorAccion ?>; border-color: <?= $bordeAccion ?>;">
+                            <?= $accionSuspender ? 'Suspender' : 'Activar' ?>
                         </button>
                     </form>
                 </td>
